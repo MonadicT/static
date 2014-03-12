@@ -35,12 +35,12 @@
      (info (str ~msg " " (/ (double (- (. System (currentTimeMillis)) start#)) 1000.0) " secs"))
      ret#))
 
-(defn parse-date 
+(defn parse-date
   "Format date from in spec to out spec."
   [in out date]
   (.format (SimpleDateFormat. out) (.parse (SimpleDateFormat. in) date)))
 
-(defn post-url 
+(defn post-url
   "Given a post file return its URL."
   [file]
   (let [name (FilenameUtils/getBaseName (str file))
@@ -63,7 +63,7 @@
 (defn template [page]
   (let [[m c] page
         template (if (:template m)
-                   (:template m) 
+                   (:template m)
                    (:default-template (static.config/config)))
         [type template-string] (if (= template :none)
                                  [:none c]
@@ -80,7 +80,7 @@
             (render-template template-string
                              (merge m {"content" c}))))))
 
-(defn process-site 
+(defn process-site
   "Process site pages."
   []
   (dorun
@@ -90,7 +90,7 @@
 
        (if (empty? @content)
          (warn (str "Empty Content: " f)))
-       
+
        (write-out-dir
         (site-url f (:extension metadata))
         (template [(assoc metadata :type :site) @content])))
@@ -104,15 +104,15 @@
   "Create RSS item node."
   [file]
   (let [[metadata content] (read-doc file)]
-    [:item 
+    [:item
      [:title (escape-html (:title metadata))]
      [:link  (str (URL. (URL. (:site-url (config))) (post-url file)))]
      [:pubDate (parse-date "yyyy-MM-dd" "E, d MMM yyyy HH:mm:ss Z"
-                           (re-find #"\d*-\d*-\d*" 
+                           (re-find #"\d*-\d*-\d*"
                                     (FilenameUtils/getBaseName (str file))))]
      [:description (escape-html @content)]]))
 
-(defn create-rss 
+(defn create-rss
   "Create RSS feed."
   []
   (let [in-dir (File. (dir-path :posts))
@@ -120,8 +120,8 @@
     (write-out-dir "rss-feed"
                    (html (xml-declaration "UTF-8")
                          (doctype :xhtml-strict)
-                         [:rss {:version "2.0"} 
-                          [:channel 
+                         [:rss {:version "2.0"}
+                          [:channel
                            [:title (escape-html (:site-title (config)))]
                            [:link (:site-url (config))]
                            [:description
@@ -131,40 +131,50 @@
 (defn create-sitemap
   "Create sitemap."
   []
-  (write-out-dir 
+  (write-out-dir
    "sitemap.xml"
-   (let [base (:site-url (config))] 
-     (html (xml-declaration "UTF-8") 
+   (let [base (:site-url (config))]
+     (html (xml-declaration "UTF-8")
            [:urlset {:xmlns "http://www.sitemaps.org/schemas/sitemap/0.9"}
             [:url [:loc base]]
-            (map #(vector :url [:loc (str base %)]) 
+            (map #(vector :url [:loc (str base %)])
                  (map post-url (list-files :posts)))
-            (map #(vector :url [:loc (str base "/" %)]) 
+            (map #(vector :url [:loc (str base "/" %)])
                  (map site-url (list-files :site)))]))))
 
 ;;
 ;; Create Tags Page.
 ;;
 
-(defn tag-map 
+(defn parse-tags
+  "Return array of tag strings from s"
+  [s]
+  (when s
+    (binding [*in* (java.io.PushbackReader. (java.io.StringReader. s))]
+      (loop [toks []]
+        (if-let [t (read *in*  nil nil true)]
+          (recur (conj toks (str t)))
+          toks)))))
+
+(defn tag-map
   "Create a map of tags and posts contining them. {tag1 => [url1 url2..]}"
   []
-  (reduce 
+  (reduce
    (fn[h v]
      (let [[metadata] (read-doc v)
            info [(post-url v) (:title metadata)]
-           tags (.split (:tags metadata) " ")]
-       (reduce 
-        (fn[m p] 
-          (let [[tag info] p] 
+           tags (parse-tags (:tags metadata))]
+       (reduce
+        (fn[m p]
+          (let [[tag info] p]
             (if (nil? (m tag))
               (assoc m tag [info])
               (assoc m tag (conj (m tag) info)))))
         h (partition 2 (interleave tags (repeat info))))))
-   (sorted-map)   
+   (sorted-map)
    (filter #(not (nil? (:tags (first (read-doc %))))) (list-files :posts))))
 
-(defn create-tags 
+(defn create-tags
   "Create and write tags page."
   []
   (write-out-dir "tags/index.html"
@@ -173,11 +183,11 @@
                    (html
                     [:h2 "Tags"]
                     (map (fn[t]
-                           (let [[tag posts] t] 
+                           (let [[tag posts] t]
                              [:h4 [:a {:name tag} tag]
                               [:ul
                                (map #(let [[url title] %]
-                                       [:li [:a {:href url} title]]) 
+                                       [:li [:a {:href url} title]])
                                     posts)]]))
                          (tag-map)))])))
 
@@ -190,10 +200,10 @@
   [page max-index posts-per-page]
   (let [count-total (count (list-files :posts))
         older [:div {:class "pager-left"}
-               [:a {:href (str "/latest-posts/" (- page 1) "/")} 
+               [:a {:href (str "/latest-posts/" (- page 1) "/")}
                 "&laquo; Older Entries"]]
         newer [:div {:class "pager-right"}
-               [:a {:href (str "/latest-posts/" (+ page 1) "/")} 
+               [:a {:href (str "/latest-posts/" (+ page 1) "/")}
                 "Newer Entries &raquo;"]]]
     (cond
      (<= count-total posts-per-page) nil
@@ -206,13 +216,13 @@
   [f]
   (let [[metadata content] (read-doc f)]
     [:div [:h2 [:a {:href (post-url f)} (:title metadata)]]
-     [:p {:class "publish_date"}  
-      (parse-date "yyyy-MM-dd" "dd MMM yyyy" 
-                  (re-find #"\d*-\d*-\d*" 
+     [:p {:class "publish_date"}
+      (parse-date "yyyy-MM-dd" "dd MMM yyyy"
+                  (re-find #"\d*-\d*-\d*"
                            (FilenameUtils/getBaseName (str f))))]
      [:p @content]]))
 
-(defn create-latest-posts 
+(defn create-latest-posts
   "Create and write latest post pages."
   []
   (let [posts-per-page (:posts-per-page (config))
@@ -235,12 +245,12 @@
 ;; Create Archive Pages.
 ;;
 
-(defn post-count-by-mount 
+(defn post-count-by-mount
   "Create a map of month to post count {month => count}"
   []
   (->> (list-files :posts)
        (reduce (fn [h v]
-                 (let  [date (re-find #"\d*-\d*" 
+                 (let  [date (re-find #"\d*-\d*"
                                       (FilenameUtils/getBaseName (str v)))]
                    (if (nil? (h date))
                      (assoc h date 1)
@@ -248,7 +258,7 @@
        (sort-by first)
        reverse))
 
-(defn create-archives 
+(defn create-archives
   "Create and write archive pages."
   []
   ;;create main archive page.
@@ -256,23 +266,23 @@
    (str "archives/index.html")
    (template
     [{:title "Archives" :template (:default-template (config))}
-     (html 
+     (html
       (list [:h2 "Archives"]
-            [:ul 
-             (map 
+            [:ul
+             (map
               (fn [[mount count]]
                 [:li [:a
                       {:href (str "/archives/" (.replace mount "-" "/") "/")}
                       (parse-date "yyyy-MM" "MMMM yyyy" mount)]
                  (str " (" count ")")])
               (post-count-by-mount))]))]))
-  
+
   ;;create a page for each month.
   (dorun
    (pmap
     (fn [month]
       (let [posts (->> (list-files :posts)
-                       (filter #(.startsWith 
+                       (filter #(.startsWith
                                  (FilenameUtils/getBaseName (str %)) month))
                        reverse)]
         (write-out-dir
@@ -282,7 +292,7 @@
            (html (map snippet posts))]))))
     (keys (post-count-by-mount)))))
 
-(defn create-aliases 
+(defn create-aliases
   "Create redirect pages."
   ([]
      (doseq [post (list-files :posts)]
@@ -300,29 +310,29 @@
                     [:meta {:http-equiv "content-type" :content "text/html; charset=utf-8"}]
                     [:meta {:http-equiv "refresh" :content (str "0;url=" (post-url file))}]]])))))))
 
-(defn process-posts 
+(defn process-posts
   "Create and write post pages."
   []
   (dorun
    (pmap
     #(let [f %
            [metadata content] (read-doc f)
-           out-file (reduce (fn[h v] (.replaceFirst h "-" "/")) 
+           out-file (reduce (fn[h v] (.replaceFirst h "-" "/"))
                             (FilenameUtils/getBaseName (str f)) (range 3))
            out-file (if (empty? (:post-out-subdir (config)))
                       out-file
                       (str (:post-out-subdir (config)) "/" out-file))]
-       
+
        (if (empty? @content)
          (warn (str "Empty Content: " f)))
-       
-       (write-out-dir 
+
+       (write-out-dir
         (str out-file "/index.html")
-        (template 
+        (template
          [(assoc metadata :type :post :url (post-url f)) @content])))
     (list-files :posts))))
 
-(defn process-public 
+(defn process-public
   "Copy public from in-dir to out-dir."
   []
   (let [in-dir (File. (dir-path :public))
@@ -332,25 +342,41 @@
         (FileUtils/copyFileToDirectory f out-dir)
         (FileUtils/copyDirectoryToDirectory f out-dir)))))
 
-(defn create 
+(defn clear-content
+  "Delete all generated content from site-dir. Everything except config.clj,
+   _* and .* is deleted."
+  [site-dir]
+  (doall
+   (map
+    (fn [f]
+      (when (and (not= (.getName f) "config.clj")
+                 (not (.startsWith (.getName f) "."))
+                 (not (.startsWith (.getName f) "_")))
+        (when (.isDirectory f)
+          (clear-content f))
+        (.delete f)))
+    (.listFiles (clojure.java.io/file site-dir)))))
+
+(defn create
   "Build Site."
-  [] 
-  (doto (File. (:out-dir (config)))
-    (FileUtils/deleteDirectory)
-    (.mkdir))
+  []
+  (let [out-dir (File. (:out-dir (config)))]
+    (when-not (.exists out-dir)
+      (.mkdir out-dir))
+    (clear-content "."))
 
   (log-time-elapsed "Processing Public " (process-public))
   (log-time-elapsed "Processing Site " (process-site))
-  
+
   (if (pos? (-> (dir-path :posts) (File.) .list count))
-    (do 
+    (do
       (log-time-elapsed "Processing Posts " (process-posts))
       (log-time-elapsed "Creating RSS " (create-rss))
       (log-time-elapsed "Creating Tags " (create-tags))
-      
+
       (when (:create-archives (config))
         (log-time-elapsed "Creating Archives " (create-archives)))
-      
+
       (log-time-elapsed "Creating Sitemap " (create-sitemap))
       (log-time-elapsed "Creating Aliases " (create-aliases))
 
@@ -360,18 +386,18 @@
                                                   (str  "latest-posts/")
                                                   (File.)
                                                   .list)))]
-          (FileUtils/copyFile 
-           (File. (str (:out-dir (config)) 
-                       "latest-posts/" max "/index.html")) 
+          (FileUtils/copyFile
+           (File. (str (:out-dir (config))
+                       "latest-posts/" max "/index.html"))
            (File. (str (:out-dir (config)) "index.html"))))))))
 
-(defn serve-static [req] 
+(defn serve-static [req]
   (let [mime-types {".clj" "text/plain"
                     ".mp4" "video/mp4"
                     ".ogv" "video/ogg"}]
-    (if-let [f (file-response (:uri req) {:root (:out-dir (config))})] 
-      (if-let [mimetype (mime-types (re-find #"\..+$" (:uri req)))] 
-        (merge f {:headers {"Content-Type" mimetype}}) 
+    (if-let [f (file-response (:uri req) {:root (:out-dir (config))})]
+      (if-let [mimetype (mime-types (re-find #"\..+$" (:uri req)))]
+        (merge f {:headers {"Content-Type" mimetype}})
         f))))
 
 (defn watch-and-rebuild
@@ -406,14 +432,14 @@
 
     (let [out-dir (:out-dir (config))
           tmp-dir (str (System/getProperty "java.io.tmpdir") "/" "static/")]
-      
+
       (when (or tmp
                 (and (:atomic-build (config))
                      build))
         (let [loc (FilenameUtils/normalize tmp-dir)]
           (set!-config :out-dir loc)
           (info (str "Using tmp location: " (:out-dir (config))))))
-      
+
       (cond build (log-time-elapsed "Build took " (create))
             watch (do (watch-and-rebuild)
                       (future (run-jetty serve-static {:port 8080}))
@@ -423,11 +449,11 @@
             rsync (let [{:keys [rsync out-dir host user deploy-dir]} (config)]
                     (deploy-rsync rsync out-dir host user deploy-dir))
             :default (println "Use --help for options."))
-      
+
       (when (and (:atomic-build (config))
                  build)
         (FileUtils/deleteDirectory (File. out-dir))
         (FileUtils/moveDirectory (File. tmp-dir) (File. out-dir))))
-  
+
     (when-not watch
       (shutdown-agents))))
