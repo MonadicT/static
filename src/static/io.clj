@@ -56,9 +56,9 @@
   (let [[metadata & content] (read-string
                               (str \( (slurp file :encoding (:encoding (config))) \)))]
     [metadata (delay (binding [*ns* (the-ns 'static.core)]
-                       (->> content 
+                       (->> content
                             (map eval)
-                            last 
+                            last
                             html)))]))
 
 (defn- read-cssgen [file]

@@ -411,6 +411,7 @@
                                           (memo-clear! read-template)
                                           (create)
                                           (catch Exception e
+                                            (.printStackTrace e)
                                             (warn (str "Exception thrown while building site! " e))))))))
 
 (defn -main [& args]
